@@ -13,26 +13,35 @@
  */
 
 // This is the main handler function for the serverless endpoint.
-export default async function handler(request, response) {
+// It uses the standard Web API Request and Response objects.
+export default async function handler(request, context) {
   // Only allow POST requests
   if (request.method !== 'POST') {
-    response.status(405).json({ error: 'Method Not Allowed' });
-    return;
+    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   // Get the secret API key from environment variables
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    response.status(500).json({ error: 'API key not configured on the server.' });
-    return;
+    return new Response(JSON.stringify({ error: 'API key not configured on the server.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
-    const { prompt } = request.body;
+    // The request body is a stream, so we need to parse it as JSON
+    const body = await request.json();
+    const { prompt } = body;
 
     if (!prompt) {
-      response.status(400).json({ error: 'Prompt is required.' });
-      return;
+      return new Response(JSON.stringify({ error: 'Prompt is required.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
@@ -51,12 +60,14 @@ export default async function handler(request, response) {
     if (!apiResponse.ok) {
       const errorText = await apiResponse.text();
       console.error('Google AI API Error:', errorText);
-      response.status(apiResponse.status).json({ error: 'Failed to get a response from the AI.' });
-      return;
+      return new Response(JSON.stringify({ error: 'Failed to get a response from the AI.' }), {
+        status: apiResponse.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     const result = await apiResponse.json();
-
+    
     // Helper function to safely parse the AI's text response
     const parseAIResponse = (text) => {
         const cleanedText = text.replace(/^```json\s*|```\s*$/g, '').trim();
@@ -74,18 +85,35 @@ export default async function handler(request, response) {
         const parsedData = parseAIResponse(rawText);
 
         if(parsedData.error) {
-            response.status(500).json({ error: parsedData.error });
-            return;
+            return new Response(JSON.stringify({ error: parsedData.error }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' },
+            });
         }
 
         // Send the successful, parsed data back to the frontend
-        response.status(200).json(parsedData);
+        return new Response(JSON.stringify(parsedData), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
     } else {
-        response.status(500).json({ error: 'No content received from the AI.' });
+        return new Response(JSON.stringify({ error: 'No content received from the AI.' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
     }
 
   } catch (error) {
     console.error('Internal Server Error:', error);
-    response.status(500).json({ error: 'An unexpected error occurred on the server.' });
+    if (error instanceof SyntaxError) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON in request body.' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+    return new Response(JSON.stringify({ error: 'An unexpected error occurred on the server.' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
