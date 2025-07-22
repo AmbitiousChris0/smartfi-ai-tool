@@ -15,11 +15,28 @@
 // This is the main handler function for the serverless endpoint.
 // It uses the standard Web API Request and Response objects.
 export default async function handler(request, context) {
-  // Only allow POST requests
+  // --- CORS Headers ---
+  // These headers are necessary to allow your frontend (on a different domain)
+  // to make requests to this backend function.
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*', // Allows any domain to access this function
+    'Access-Control-Allow-Methods': 'POST, OPTIONS', // Specifies allowed methods
+    'Access-Control-Allow-Headers': 'Content-Type', // Specifies allowed headers
+  };
+
+  // Handle preflight requests (sent by browsers to check CORS)
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    });
+  }
+
+  // Only allow POST requests for the main logic
   if (request.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
       status: 405,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -28,7 +45,7 @@ export default async function handler(request, context) {
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'API key not configured on the server.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
@@ -40,7 +57,7 @@ export default async function handler(request, context) {
     if (!prompt) {
       return new Response(JSON.stringify({ error: 'Prompt is required.' }), {
         status: 400,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -62,7 +79,7 @@ export default async function handler(request, context) {
       console.error('Google AI API Error:', errorText);
       return new Response(JSON.stringify({ error: 'Failed to get a response from the AI.' }), {
         status: apiResponse.status,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -87,19 +104,19 @@ export default async function handler(request, context) {
         if(parsedData.error) {
             return new Response(JSON.stringify({ error: parsedData.error }), {
               status: 500,
-              headers: { 'Content-Type': 'application/json' },
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
         }
 
         // Send the successful, parsed data back to the frontend
         return new Response(JSON.stringify(parsedData), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     } else {
         return new Response(JSON.stringify({ error: 'No content received from the AI.' }), {
           status: 500,
-          headers: { 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 
@@ -108,12 +125,12 @@ export default async function handler(request, context) {
     if (error instanceof SyntaxError) {
         return new Response(JSON.stringify({ error: 'Invalid JSON in request body.' }), {
             status: 400,
-            headers: { 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
     return new Response(JSON.stringify({ error: 'An unexpected error occurred on the server.' }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 }
